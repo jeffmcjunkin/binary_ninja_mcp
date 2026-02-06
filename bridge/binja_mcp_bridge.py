@@ -1,3 +1,11 @@
+# /// script
+# requires-python = ">=3.12"
+# dependencies = [
+#     "mcp[cli]>=1.6.0",
+#     "requests>=2.32.3",
+# ]
+# ///
+
 import sys as _sys
 import traceback as _tb
 
