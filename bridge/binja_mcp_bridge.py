@@ -1046,7 +1046,7 @@ def patch_bytes(address: str, data: str, save_to_file: bool = True) -> str:
     return str(result)
 
 
-if __name__ == "__main__":
+def main():
     # Important: write any logs to stderr to avoid corrupting MCP stdio JSON-RPC
     print("Starting MCP bridge service...", file=_sys.stderr)
     try:
@@ -1055,3 +1055,7 @@ if __name__ == "__main__":
         # Ensure any runtime exception is captured in the log file
         _bridge_excepthook(type(_e), _e, _e.__traceback__)
         raise
+
+
+if __name__ == "__main__":
+    main()

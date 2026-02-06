@@ -1,0 +1,12 @@
+[project]
+name = "binja-mcp"
+version = "0.1.0"
+description = "Binary Ninja MCP bridge for LLM-powered binary analysis"
+requires-python = ">=3.12"
+dependencies = [
+    "mcp[cli]>=1.6.0",
+    "requests>=2.32.3",
+]
+
+[project.scripts]
+binja-mcp = "bridge.binja_mcp_bridge:main"
