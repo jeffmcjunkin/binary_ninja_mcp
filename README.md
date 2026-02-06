@@ -41,7 +41,7 @@ Please install the MCP client before you install Binary Ninja MCP so that the MC
     3. Claude Desktop (recommended)
     4. Cursor
     5. Windsurf
-    6. Claude Code
+    6. Claude Code (see below for standalone setup)
     7. LM Studio
 
 ### Extension Installation
@@ -88,6 +88,14 @@ For other MCP clients, this is an example config:
 ```
 
 Note: Replace `/ABSOLUTE/PATH/TO` with the actual absolute path to your project directory. The virtual environment's Python interpreter must be used to access the installed dependencies.
+
+#### Claude Code (standalone via uv)
+
+If you have [uv](https://docs.astral.sh/uv/) installed, you can add the MCP server to Claude Code without cloning the repository:
+
+```bash
+claude mcp add --transport stdio binja-mcp -- uvx --from git+https://github.com/RogueValleyInformationSecurity/binary_ninja_mcp binja-mcp
+```
 
 ## Usage
 
@@ -157,6 +165,8 @@ The following table lists the available MCP functions for use:
 | `list_platforms()`                                                   | List all available platform names.                                                                           |
 | `list_binaries()`                                                    | List managed/open binaries with ids and active flag.                                                         |
 | `select_binary(view)`                                                | Select active binary by id or filename.                                                                      |
+| `list_project_files()`                                               | List all files in the currently open .bnpr project with name, open status, and path.                         |
+| `add_binary_to_project(filepath, name, description)`                 | Add a binary from disk into the open .bnpr project, analyze it, and set it as the active target.             |
 | `list_all_strings()`                                                 | List all strings (no pagination; aggregates all pages).                                                      |
 | `list_classes`                                                       | List all namespace/class names in the program.                                                               |
 | `list_data_items`                                                    | List defined data labels and their values.                                                                   |
@@ -193,6 +203,8 @@ These are the list of HTTP endpoints that can be called:
 - `/platforms`: List all available platform names.
 - `/binaries` or `/views`: List managed/open binaries with ids and active flag.
 - `/selectBinary?view=<id|filename>`: Select active binary for subsequent operations.
+- `/projectFiles`: List all files in the currently open .bnpr project.
+- `/addBinaryToProject` (POST): Add a binary from disk into the open project. Parameters: `filepath` (required), `name` (optional), `description` (optional).
 - `/data?offset=<n>&limit=<m>&length=<n>`: Defined data items with previews. `length` controls bytes read per item (capped at defined size). Default behavior reads exact defined size when available; `length=-1` forces exact-size.
 - `/getXrefsToEnum?name=<enum>`: Enum usages by matching member constants.
 - `/getXrefsToField?struct=<name>&field=<name>`: Xrefs to struct field.
