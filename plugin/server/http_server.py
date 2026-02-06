@@ -225,6 +225,7 @@ class MCPRequestHandler(BaseHTTPRequestHandler):
                     or self.path.startswith("/binaries")
                     or self.path.startswith("/views")
                     or self.path.startswith("/selectBinary")
+                    or self.path.startswith("/projectFiles")
                 )
                 and not self._check_binary_loaded()
             ):
@@ -286,6 +287,9 @@ class MCPRequestHandler(BaseHTTPRequestHandler):
                     )
                 else:
                     self._send_json_response(self.endpoints.select_binary(ident))
+
+            elif path == "/projectFiles":
+                self._send_json_response(self.endpoints.list_project_files())
 
             elif path == "/exports":
                 exports = self.endpoints.get_exports(offset, limit)
@@ -1842,14 +1846,12 @@ class MCPRequestHandler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         try:
-            if not self._check_binary_loaded():
-                return
-
             params = self._parse_post_params()
             path = urllib.parse.urlparse(self.path).path
 
             bn.log_info(f"POST {path} with params: {params}")
 
+            # Routes that work without a loaded binary
             if path == "/load":
                 filepath = params.get("filepath")
                 if not filepath:
@@ -1863,6 +1865,28 @@ class MCPRequestHandler(BaseHTTPRequestHandler):
                     )
                 except Exception as e:
                     self._send_json_response({"error": str(e)}, 500)
+
+            elif path == "/addBinaryToProject":
+                filepath = params.get("filepath")
+                if not filepath:
+                    self._send_json_response({"error": "Missing filepath parameter"}, 400)
+                    return
+                name = params.get("name") or None
+                description = params.get("description") or None
+                try:
+                    result = self.endpoints.add_binary_to_project(filepath, name, description)
+                    self._send_json_response(result)
+                except FileNotFoundError as e:
+                    self._send_json_response({"error": str(e)}, 404)
+                except RuntimeError as e:
+                    self._send_json_response({"error": str(e)}, 400)
+                except Exception as e:
+                    bn.log_error(f"Error adding binary to project: {e}")
+                    self._send_json_response({"error": str(e)}, 500)
+
+            # All remaining routes require a loaded binary
+            elif not self._check_binary_loaded():
+                return
 
             elif path == "/rename/function" or path == "/renameFunction":
                 old_name = params.get("oldName") or params.get("old_name")

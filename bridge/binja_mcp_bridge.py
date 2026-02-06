@@ -660,6 +660,75 @@ def select_binary(view: str) -> str:
 
 
 @mcp.tool()
+def list_project_files() -> str:
+    """
+    List all files in the currently open Binary Ninja project (.bnpr).
+    Shows each file's name, open status, and path on disk so you can
+    identify which binaries are available and disambiguate identically-named files.
+    """
+    data = get_json("projectFiles")
+    if not data:
+        return "Error: no response from server"
+    if isinstance(data, dict) and data.get("error"):
+        return data["error"]
+    project_name = data.get("project_name", "(unknown)")
+    files = data.get("files", [])
+    if not files:
+        return f"Project '{project_name}' has no files."
+    lines = [f"Project: {project_name} ({len(files)} file(s))"]
+    for pf in files:
+        name = pf.get("name", "(unknown)")
+        is_open = pf.get("is_open", False)
+        path = pf.get("path_on_disk", "")
+        status = " [open]" if is_open else ""
+        lines.append(f"  - {name}{status}\n    path: {path}")
+    return "\n".join(lines)
+
+
+@mcp.tool()
+def add_binary_to_project(filepath: str, name: str = "", description: str = "") -> str:
+    """
+    Add a binary from disk into the currently open .bnpr project and analyze it.
+    The new binary becomes the active analysis target immediately.
+    Use this to programmatically load new binaries for autonomous analysis
+    without needing them pre-opened in the Binary Ninja UI.
+
+    Args:
+        filepath: Absolute path to the binary file on disk.
+        name: Optional display name in the project. Defaults to the file's basename.
+        description: Optional description for the project file entry.
+    """
+    payload = {"filepath": filepath}
+    if name:
+        payload["name"] = name
+    if description:
+        payload["description"] = description
+    try:
+        response = requests.post(
+            f"{binja_server_url}/addBinaryToProject",
+            data=payload,
+            timeout=120,
+        )
+        response.encoding = "utf-8"
+        try:
+            data = response.json()
+        except Exception:
+            data = None
+        if response.ok and isinstance(data, dict):
+            status = data.get("status", "")
+            bname = data.get("name", "")
+            fpath = data.get("filepath", "")
+            vid = data.get("view_id", "")
+            msg = data.get("message", "")
+            return f"Status: {status}\nName: {bname}\nSource path: {fpath}\nView ID: {vid}\n{msg}"
+        if isinstance(data, dict) and data.get("error"):
+            return f"Error: {data['error']}"
+        return f"Error {response.status_code}: {response.text.strip()}"
+    except Exception as e:
+        return f"Request failed: {e!s}"
+
+
+@mcp.tool()
 def delete_comment(address: str) -> str:
     """
     Delete the comment at a specific address.

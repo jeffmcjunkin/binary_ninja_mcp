@@ -1,3 +1,5 @@
+import hashlib
+import os
 import platform
 import re
 import subprocess
@@ -111,6 +113,143 @@ class BinaryOperations:
         except Exception:
             self._current_view = None
 
+    def get_project(self):
+        """Return the project from the current view, or None if no project is open."""
+        bv = self._current_view
+        if bv and bv.file:
+            return getattr(bv.file, "project", None)
+        return None
+
+    def _file_sha256(self, filepath: str) -> str:
+        """Compute SHA-256 hash of a file on disk."""
+        h = hashlib.sha256()
+        with open(filepath, "rb") as f:
+            for chunk in iter(lambda: f.read(65536), b""):
+                h.update(chunk)
+        return h.hexdigest()
+
+    def list_project_files(self) -> list[dict[str, Any]]:
+        """List files in the currently open project.
+
+        Returns a list of dicts with id, name, description, path_on_disk, and is_open.
+        Returns [] if no project is open.
+        """
+        project = self.get_project()
+        if not project:
+            return []
+
+        # Collect filenames of currently tracked/open views
+        open_paths: set[str] = set()
+        self._prune_views()
+        for w in self._views_by_id.values():
+            try:
+                vb = w()
+            except Exception:
+                vb = None
+            if vb is None:
+                continue
+            try:
+                open_paths.add(vb.file.filename)
+            except Exception:
+                pass
+
+        result = []
+        for pf in project.files:
+            disk_path = pf.get_path_on_disk()
+            result.append(
+                {
+                    "id": str(pf.id) if hasattr(pf, "id") else "",
+                    "name": pf.name,
+                    "description": getattr(pf, "description", ""),
+                    "path_on_disk": disk_path,
+                    "is_open": disk_path in open_paths,
+                }
+            )
+        return result
+
+    def add_binary_to_project(
+        self,
+        filepath: str,
+        name: str | None = None,
+        description: str | None = None,
+    ) -> dict[str, Any]:
+        """Add a binary from disk into the currently open .bnpr project and analyze it.
+
+        Args:
+            filepath: Path to the binary file on disk.
+            name: Optional display name in the project. Defaults to basename.
+            description: Optional description for the project file entry.
+
+        Returns:
+            Dict with status, name, filepath, view_id, and message.
+
+        Raises:
+            RuntimeError: If no project is open.
+            FileNotFoundError: If filepath does not exist.
+        """
+        project = self.get_project()
+        if not project:
+            raise RuntimeError("No project is open. Open a .bnpr project in Binary Ninja first.")
+
+        if not os.path.isfile(filepath):
+            raise FileNotFoundError(f"File not found: {filepath}")
+
+        # Compute hash of the input file for duplicate detection
+        input_hash = self._file_sha256(filepath)
+
+        # Check existing project files for duplicate content (by hash)
+        for pf in project.files:
+            existing_path = pf.get_path_on_disk()
+            if existing_path and os.path.isfile(existing_path):
+                try:
+                    if self._file_sha256(existing_path) == input_hash:
+                        # Duplicate content — open the existing entry instead of re-adding
+                        bn.log_info(f"Duplicate content detected: {filepath} matches {pf.name}")
+                        bv = bn.open_view(existing_path)
+                        self._current_view = bv
+                        vid = self._register_view(bv)
+                        return {
+                            "status": "already_exists",
+                            "name": pf.name,
+                            "filepath": filepath,
+                            "view_id": vid,
+                            "message": (
+                                f"Binary with identical content already in project as "
+                                f"'{pf.name}'. Opened existing entry."
+                            ),
+                        }
+                except Exception:
+                    continue
+
+        # Determine final name, auto-suffixing on collision
+        final_name = name or os.path.basename(filepath)
+        existing_names = {pf.name for pf in project.files}
+        if final_name in existing_names:
+            base, ext = os.path.splitext(final_name)
+            counter = 2
+            while f"{base} ({counter}){ext}" in existing_names:
+                counter += 1
+            final_name = f"{base} ({counter}){ext}"
+
+        # Add file to project
+        pf = project.create_file_from_path(
+            filepath, folder=None, name=final_name, description=description or ""
+        )
+
+        # Open and analyze
+        disk_path = pf.get_path_on_disk()
+        bv = bn.open_view(disk_path)
+        self._current_view = bv
+        vid = self._register_view(bv)
+
+        return {
+            "status": "added",
+            "name": final_name,
+            "filepath": filepath,
+            "view_id": vid,
+            "message": f"Added '{final_name}' to project and opened for analysis.",
+        }
+
     def _register_view(self, bv: bn.BinaryView) -> str:
         """Add a view to the managed list if not present, return its id."""
         self._prune_views()
@@ -220,7 +359,7 @@ class BinaryOperations:
                 vb_canon = vb
             entries.append((canonical_id, fn, bool(vb_canon is self._current_view)))
         # Sort by filename for stable ordering
-        entries.sort(key=lambda t: (t[1] or ""))
+        entries.sort(key=lambda t: t[1] or "")
         for cid, fn, active in entries:
             items.append({"id": cid, "filename": fn, "active": active})
         return items

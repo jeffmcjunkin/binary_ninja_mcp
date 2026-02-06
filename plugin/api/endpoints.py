@@ -96,6 +96,27 @@ class BinaryNinjaEndpoints:
             selected_entry["active"] = True
         return {"status": "ok", "selected": selected_entry}
 
+    def list_project_files(self) -> dict[str, Any]:
+        """List files in the currently open project."""
+        project = self.binary_ops.get_project()
+        if not project:
+            return {"error": "No project is open. Open a .bnpr project first."}
+        files = self.binary_ops.list_project_files()
+        return {
+            "project_name": getattr(project, "name", "(unknown)"),
+            "file_count": len(files),
+            "files": files,
+        }
+
+    def add_binary_to_project(
+        self,
+        filepath: str,
+        name: str | None = None,
+        description: str | None = None,
+    ) -> dict[str, Any]:
+        """Add a binary to the currently open project."""
+        return self.binary_ops.add_binary_to_project(filepath, name, description)
+
     def get_function_info(self, identifier: str) -> dict[str, Any] | None:
         """Get detailed information about a function"""
         try:
