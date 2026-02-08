@@ -8,5 +8,8 @@ dependencies = [
     "requests>=2.32.3",
 ]
 
+[tool.setuptools.packages.find]
+include = ["bridge*"]
+
 [project.scripts]
 binja-mcp = "bridge.binja_mcp_bridge:main"
