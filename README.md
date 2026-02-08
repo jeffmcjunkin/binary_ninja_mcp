@@ -94,7 +94,7 @@ Note: Replace `/ABSOLUTE/PATH/TO` with the actual absolute path to your project 
 If you have [uv](https://docs.astral.sh/uv/) installed, you can add the MCP server to Claude Code without cloning the repository:
 
 ```bash
-claude mcp add --transport stdio binja-mcp -- uvx --from git+https://github.com/RogueValleyInformationSecurity/binary_ninja_mcp binja-mcp
+claude mcp add --transport stdio binja-mcp -- uvx --from "git+https://github.com/jeffmcjunkin/binary_ninja_mcp@add-binary-to-project" binja-mcp
 ```
 
 ## Usage
