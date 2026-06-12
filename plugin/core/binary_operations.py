@@ -42,24 +42,28 @@ class BinaryOperations:
     def load_binary(self, filepath: str) -> bn.BinaryView:
         """Load a binary file using the appropriate method based on the Binary Ninja API version"""
         try:
-            if hasattr(bn, "open_view"):
+            view = None
+            if hasattr(bn, "load"):
+                bn.log_info("Using bn.load method")
+                view = bn.load(filepath)
+            elif hasattr(bn, "open_view"):
                 bn.log_info("Using bn.open_view method")
-                self._current_view = bn.open_view(filepath)
+                view = bn.open_view(filepath)
             elif hasattr(bn, "BinaryViewType") and hasattr(bn.BinaryViewType, "get_view_of_file"):
                 bn.log_info("Using BinaryViewType.get_view_of_file method")
                 file_metadata = bn.FileMetadata()
                 try:
                     if hasattr(bn.BinaryViewType, "get_default_options"):
                         options = bn.BinaryViewType.get_default_options()
-                        self._current_view = bn.BinaryViewType.get_view_of_file(
+                        view = bn.BinaryViewType.get_view_of_file(
                             filepath, file_metadata, options
                         )
                     else:
-                        self._current_view = bn.BinaryViewType.get_view_of_file(
+                        view = bn.BinaryViewType.get_view_of_file(
                             filepath, file_metadata
                         )
                 except TypeError:
-                    self._current_view = bn.BinaryViewType.get_view_of_file(filepath)
+                    view = bn.BinaryViewType.get_view_of_file(filepath)
             else:
                 bn.log_info("Using legacy method")
                 file_metadata = bn.FileMetadata()
@@ -67,15 +71,18 @@ class BinaryOperations:
                     filepath, file_metadata
                 )
                 if binary_view_type:
-                    self._current_view = binary_view_type.open()
+                    view = binary_view_type.open()
                 else:
                     raise Exception("No view type available for this file")
 
+            # Register BEFORE assigning current_view: _register_view runs
+            # _prune_views(), which clears current_view if it is not yet tracked.
             try:
-                if self._current_view is not None:
-                    self._register_view(self._current_view)
+                if view is not None:
+                    self._register_view(view)
             except Exception:
                 pass
+            self._current_view = view
             return self._current_view
         except Exception as e:
             bn.log_error(f"Failed to load binary: {e}")
